@@ -69,7 +69,7 @@ router.get('/', wrap(async (req, res) => {
 }));
 
 router.get('/wait', wrap(async (req, res) => {
-  return res.send('Vous avez voté trop récemment, attendez un petit peu !');
+  return res.send('Vous avez joué trop récemment, attendez un petit peu !');
 }));
 
 // User must be logged in to search and vote, and can vote every 10 minutes
