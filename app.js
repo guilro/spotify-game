@@ -10,6 +10,7 @@ const winston = require('winston');
 
 const index = require('./routes/index');
 const admin = require('./routes/admin');
+const conf = require('./conf');
 
 winston.configure({
   transports: [
@@ -37,7 +38,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use('/', session({store: new RedisStore(), secret: 'prout', resave: false, saveUninitialized: true}));
+app.use('/', session({store: new RedisStore(), secret: conf.secret, resave: false, saveUninitialized: true}));
 app.use('/', passport.initialize());
 app.use('/', passport.session());
 
