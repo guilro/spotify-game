@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+process.on('unhandledRejection', up => { throw up; });
+
+const SpotifyWebApi = require('spotify-web-api-node');
+const winston = require('winston');
+const debug = require('debug')('spotify-voter:daemon');
+
+winston.configure({
+  transports: [
+    new (winston.transports.Console)({
+      level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      json: process.env.NODE_ENV === 'production',
+      stringify: process.env.NODE_ENV === 'production',
+      handleExceptions: true,
+      humanReadableUnhandledException: true
+    }),
+  ]
+});
+
+const conf = require('../conf');
+const settings = require('../db').settings;
+const db = require('../db').database;
+
+const spotifyApiClientToken = new SpotifyWebApi({
+  clientId : conf.clientID,
+  clientSecret : conf.clientSecret
+});
+
+const spotifyApiUserToken = new SpotifyWebApi({
+  clientId : conf.clientID,
+  clientSecret : conf.clientSecret
+});
+
+async function updateClientToken() {
+  let clientToken = await settings.get('clientToken');
+  let clientTokenRenew = new Date(await settings.get('clientTokenRenew'));
+  let clientTokenMustBeRenewed = clientTokenRenew < Date.now();
+
+  if (clientTokenMustBeRenewed) winston.info('client token must be renewed');
+
+  if (!clientToken || clientTokenMustBeRenewed) {
+    let apiRes = (await spotifyApiClientToken.clientCredentialsGrant()).body;
+    clientToken = apiRes.access_token;
+    clientTokenRenew = new Date(Date.now() + apiRes.expires_in*1000 - 1000*60*10);
+    await settings.set('clientToken', clientToken);
+    await settings.set('clientTokenRenew', clientTokenRenew.toString());
+  }
+}
+
+setInterval(updateClientToken, 1000);
+
+async function refreshUserToken(refreshToken) {
+  spotifyApiUserToken.setRefreshToken(refreshToken);
+  try {
+    let userToken = (await spotifyApiUserToken.refreshAccessToken()).body.access_token;
+    let userTokenRenew = new Date(Date.now() + 1000*50*10);
+    await settings.set('token', userToken);
+    await settings.set('tokenRenew', userTokenRenew.toString());
+
+    return userToken;
+  } catch (e) {
+    if (e.name !== 'WebapiError') throw e;
+
+    await settings.set('refreshToken', null);
+    await settings.set('token', null);
+  }
+}
+
+async function updateUserState() {
+  if (!await settings.get('active')) {
+    winston.debug('spotify voter is inactive');
+    settings.set('state', 'paused');
+
+    return;
+  }
+
+  let userToken = await settings.get('token');
+  let userTokenRenew = new Date(await settings.get('tokenRenew'));
+  let userTokenMustBeRenewed = userTokenRenew < Date.now();
+
+  let refreshToken = await settings.get('refreshToken');
+
+  if (!refreshToken) winston.error('no refresh token');
+  if (!userToken) winston.error('no user token');
+
+  if (refreshToken && (!userToken || userTokenMustBeRenewed)) {
+    winston.info('user token must be renewed');
+    userToken = await refreshUserToken(refreshToken);
+  }
+
+  if (!userToken) return;
+
+  spotifyApiUserToken.setAccessToken(userToken);
+
+  let apiRes;
+  try {
+    apiRes = await spotifyApiUserToken.getMyCurrentPlaybackState();
+  } catch (e) {
+    if (e.name !== 'WebapiError') throw e;
+
+    // Stop there, but try to refresh to refresh token for next time
+    return refreshUserToken(refreshToken);
+  }
+
+  if (!apiRes.body.is_playing) {
+    await settings.set('state', 'paused');
+    debug('spotify is not playing');
+
+    return;
+  }
+
+  let track = apiRes.body.item;
+  debug('playing track', track.name);
+  await settings.set('state', 'playing');
+  await settings.set('currentSongName', track.name);
+  await settings.set('currentSongArtists', track.artists.map(a => a.name).join(', '));
+
+  debug(`${track.duration_ms - apiRes.body.progress_ms} ms before end of the song`);
+  if (track.duration_ms - apiRes.body.progress_ms < 2000) {
+    var {id: songId, votes} = await db.get('SELECT id, votes FROM songs ORDER BY votes DESC');
+    if (votes === 0) {
+      winston.info('no song with more than 0 votes');
+      return;
+    }
+
+    winston.info(`song is ending, switch to ${songId}`);
+    await spotifyApiUserToken.play({
+      uris: [`spotify:track:${songId}`]
+    });
+
+    await db.run('UPDATE songs SET votes = ?, count = count +1 WHERE id = ?', [0, songId]);
+    winston.info('song switched');
+  }
+}
+
+setInterval(updateUserState, 1000);
+
+module.exports = {
+  spotifyApiUserToken,
+  spotifyApiClientToken
+};

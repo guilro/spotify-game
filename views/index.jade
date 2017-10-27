@@ -1,0 +1,25 @@
+extends layout
+
+block title
+  | Votez pour la musique <a href="https://au43.fr">au 43</a>
+  
+block content
+  h1 Choisissez la musique qu'on écoute <a href="https://au43.fr">au 43</a>.
+  if (state == 'playing')
+    h3 On écoute actuellement <em>#{track.name}</em> de #{track.artists}&nbsp;!
+  else
+    h3 On n'écoute pas de musique en ce moment même, désolé... mais vous pouvez quand même jouer&nbsp;!
+  p.
+    Pour participer, c'est simple : #{user ? '': 'connectez-vous, '}recherchez un morceau, cliquez dessus dans la liste, et un point
+    lui sera ajouté. À la fin de chaque morceau, le suivant est celui le mieux classé&nbsp;!
+  if user
+    p Bonjour #{user.email}&nbsp;! Vous pouvez rechercher un morceau par titre, artiste ou album...
+    form(action="/search" method="GET")
+      input(type="text" placeholder="" name="q")
+      input(type="submit" value="Rechercher") 
+  else
+    p <a href="/login">Connectez vous avez votre compte lafranceinsoumise.fr</a> pour participer.
+  h3 Classement actuel
+  ul
+    for song in songs
+      li #{song.description} (#{song.votes} point#{song.votes > 1 ? 's' : ''})

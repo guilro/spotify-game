@@ -1,0 +1,16 @@
+extends layout
+
+block content
+  h1= Administration
+  p.
+    Bonjour #{displayName}. Spotify semble bien connecté, mais si ça marche pas
+    tu peux toujours <a href="/admin/oauth">cliquer ici</a> pour que l'appli
+    récupère un nouveau token.
+  if active
+    p L'appli contrôle Spotify en ce moment même&nbsp;!
+    p
+      a(href="/admin/toggle") Désactiver
+  else
+    p Pour l'instant, l'appli n'est pas active.
+    p
+      a(href="/admin/toggle") Activer

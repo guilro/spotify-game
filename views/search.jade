@@ -1,0 +1,9 @@
+extends layout
+
+block content
+  form(action="/search" method="GET")
+    input(type="text" placeholder="Rechercher" name="q")
+  ul
+    for track in tracks
+      li
+       a(href='/vote/' + track.id) #{track.name} - #{track.artists.map(artist => artist.name).join(', ')} - #{track.album.name}
