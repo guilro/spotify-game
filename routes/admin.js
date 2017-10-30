@@ -11,7 +11,10 @@ const db = require('../db').database;
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => {
-  user.canVote = !user.lastVote || user.lastVote < new Date(Date.now() - 1000 * 60 * 10);
+  if (conf.admins.includes(user.id) || user.id === 'admin') {
+    user.isAdmin = true;
+  }
+  user.canVote = user.isAdmin || !user.lastVote || user.lastVote < new Date(Date.now() - 1000 * 60 * 10);
 
   debug(user);
 
@@ -38,6 +41,7 @@ passport.use(new SpotifyStrategy({
 
   return done(null, {
     id: 'admin',
+    isAdmin: true,
     email: 'admin',
     lastVote: user && user.last_vote && new Date(user.last_vote),
     username: profile.username,
@@ -47,7 +51,7 @@ passport.use(new SpotifyStrategy({
 
 router.use('/', (req, res, next) => {
   // if user is not logged in as admin or authorized to
-  if (!req.user || !(req.user.email == conf.adminEmail || req.user.id == 'admin')) {
+  if (!req.user || !req.user.isAdmin) {
     return res.send(403);
   }
 
@@ -70,7 +74,7 @@ router.get(
 );
 
 router.use('/', (req, res, next) => {
-  if (req.user.id !== 'admin') {
+  if (!req.user.isAdmin) {
     return res.redirect('/admin/oauth');
   }
 

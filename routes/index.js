@@ -19,9 +19,9 @@ const fiStrategy = new OAuth2Strategy({
   callbackURL: `${conf.host}/oauth_callback`,
   scope: 'view_profile'
 }, async (accessToken, refreshToken, profile, done) => {
-  let user = await db.get('SELECT * FROM users WHERE id = ?', profile.id);
+  let user = await db.get('SELECT * FROM users WHERE id = ?', profile._id);
   return done(null, {
-    id: profile.id,
+    id: profile._id,
     email: profile.email,
     lastVote: user && user.last_vote && new Date(user.last_vote),
   });
