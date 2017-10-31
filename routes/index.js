@@ -19,11 +19,9 @@ const fiStrategy = new OAuth2Strategy({
   callbackURL: `${conf.host}/oauth_callback`,
   scope: 'view_profile'
 }, async (accessToken, refreshToken, profile, done) => {
-  let user = await db.get('SELECT * FROM users WHERE id = ?', profile._id);
   return done(null, {
     id: profile._id,
-    email: profile.email,
-    lastVote: user && user.last_vote && new Date(user.last_vote),
+    email: profile.email
   });
 });
 
@@ -125,7 +123,7 @@ router.get('/vote/:id', canVote, wrap(async (req, res) => {
   }
 
   let date = new Date().toString();
-  db.run('INSERT OR REPLACE INTO users(id, last_vote) VALUES(?, ?)', [req.user.id, date]);
+  db.run('INSERT INTO votes(user_id, song_id, created) VALUES(?, ?, datetime("now"))', [req.user.id, req.params.id]);
   req.user.lastVote = date;
 
   winston.info(`new vote for ${req.params.id} by ${req.user.id}`);

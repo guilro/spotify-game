@@ -10,11 +10,15 @@ const settings = require('../db').settings;
 const db = require('../db').database;
 
 passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((user, done) => {
+passport.deserializeUser(async (user, done) => {
   if (conf.admins.includes(user.id) || user.id === 'admin') {
     user.isAdmin = true;
   }
-  user.canVote = user.isAdmin || !user.lastVote || user.lastVote < new Date(Date.now() - 1000 * 60 * 10);
+
+  let {voteCount} = await db.get('SELECT COUNT(*) as voteCount FROM votes WHERE user_id = ? AND created > datetime("now", "-30 minutes")', [user.id]);
+
+  user.voteCount = voteCount;
+  user.canVote = user.isAdmin || voteCount < 4;
 
   debug(user);
 
@@ -30,7 +34,6 @@ passport.use(new SpotifyStrategy({
     return done(new Error('Not the right username !'));
   }
 
-  let user = await db.get('SELECT * FROM users WHERE id = ?', profile.id);
   let tokenRenew = new Date(Date.now() + 1000*50*10);
 
   await Promise.all([
@@ -43,7 +46,7 @@ passport.use(new SpotifyStrategy({
     id: 'admin',
     isAdmin: true,
     email: 'admin',
-    lastVote: user && user.last_vote && new Date(user.last_vote),
+    canVote: true,
     username: profile.username,
     displayName: profile.displayName,
   });
