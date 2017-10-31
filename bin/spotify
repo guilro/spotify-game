@@ -117,7 +117,7 @@ async function updateUserState() {
 
   debug(`${track.duration_ms - apiRes.body.progress_ms} ms before end of the song`);
   if (track.duration_ms - apiRes.body.progress_ms < 2000) {
-    var {id: songId, votes} = await db.get('SELECT id, votes FROM songs ORDER BY votes DESC');
+    var {id: songId, votes} = await db.get('SELECT id, votes FROM songs ORDER BY votes DESC, last_vote ASC');
     if (votes === 0) {
       winston.info('no song with more than 0 votes');
       return;

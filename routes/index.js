@@ -53,7 +53,7 @@ router.get(
 
 // Index with current playing and current ladder
 router.get('/', wrap(async (req, res) => {
-  let songs = await db.all('SELECT * FROM songs WHERE votes > 0 ORDER BY votes DESC');
+  let songs = await db.all('SELECT * FROM songs WHERE votes > 0 ORDER BY votes DESC, last_vote ASC');
 
   res.render('index', {
     state: await settings.get('state') || 'paused',
@@ -106,7 +106,7 @@ router.get('/vote/:id', canVote, wrap(async (req, res) => {
   let song = await db.get('SELECT * FROM songs WHERE id = ?', req.params.id);
 
   if (song) {
-    await db.run('UPDATE songs SET votes = votes +1 WHERE id = ?', req.params.id);
+    await db.run('UPDATE songs SET votes = votes +1, last_vote = datetime("now") WHERE id = ?', req.params.id);
   } else {
     try {
       var track = (await spotifyApiClientToken.getTrack(req.params.id)).body;
